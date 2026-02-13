@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a1a">
+    <title>Exarp — Watchtower</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a1a;
+            color: #e0e0e0;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            min-height: 100vh;
+            padding: 12px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #1a1a3e, #0d0d2b);
+            border: 1px solid #2a2a5e;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+        .header h1 { font-size: 1.2em; color: #6ee7e7; }
+        .header .status { 
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.85em;
+        }
+        .status .dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #4ade80; box-shadow: 0 0 8px #4ade8066;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .sources { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+        .source-card {
+            background: linear-gradient(135deg, #141430, #0f0f28);
+            border: 1px solid #2a2a5e;
+            border-radius: 10px;
+            padding: 14px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .source-card:hover, .source-card.selected {
+            border-color: #6ee7e7;
+            box-shadow: 0 0 12px #6ee7e733;
+        }
+        .source-card.critical {
+            border-color: #ef4444;
+            box-shadow: 0 0 12px #ef444433;
+            animation: alert-pulse 1s infinite;
+        }
+        @keyframes alert-pulse {
+            0%, 100% { box-shadow: 0 0 12px #ef444433; }
+            50% { box-shadow: 0 0 24px #ef444466; }
+        }
+        .source-name { font-weight: bold; color: #6ee7e7; font-size: 0.95em; }
+        .source-path { color: #888; font-size: 0.8em; margin-top: 2px; }
+        .source-right { text-align: right; }
+        .source-entropy { font-size: 1.1em; font-weight: bold; }
+        .source-entropy.ok { color: #4ade80; }
+        .source-entropy.warn { color: #facc15; }
+        .source-entropy.crit { color: #ef4444; }
+        .source-files { color: #888; font-size: 0.8em; }
+        .source-time { color: #555; font-size: 0.75em; }
+        .chart-container {
+            background: linear-gradient(135deg, #141430, #0f0f28);
+            border: 1px solid #2a2a5e;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            height: 200px;
+            position: relative;
+        }
+        .chart-title { font-size: 0.85em; color: #6ee7e7; margin-bottom: 8px; }
+        canvas { width: 100%; height: 160px; }
+        .alerts {
+            background: linear-gradient(135deg, #141430, #0f0f28);
+            border: 1px solid #2a2a5e;
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+        }
+        .alerts h3 { font-size: 0.85em; color: #6ee7e7; margin-bottom: 8px; }
+        .alert-ok { color: #4ade80; font-size: 0.85em; }
+        .alert-crit { color: #ef4444; font-size: 0.85em; padding: 8px; background: #ef44441a; border-radius: 6px; margin-top: 4px; }
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .action-btn {
+            background: linear-gradient(135deg, #1a1a4e, #151540);
+            border: 1px solid #3a3a6e;
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+            color: #6ee7e7;
+            font-family: inherit;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .action-btn:hover { border-color: #6ee7e7; }
+        .action-btn .icon { font-size: 1.8em; margin-bottom: 6px; }
+        .action-btn.danger { border-color: #ef444444; color: #ef4444; }
+        .action-btn.danger:hover { border-color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🦉 Exarp</h1>
+        <div class="status">
+            <div class="dot"></div>
+            <span id="conn-status">Connected</span>
+        </div>
+    </div>
+
+    <div class="sources" id="sources"></div>
+
+    <div class="chart-container">
+        <div class="chart-title">Entropy Timeline — All Sources</div>
+        <canvas id="chart"></canvas>
+    </div>
+
+    <div class="alerts">
+        <h3>Alerts</h3>
+        <div id="alert-list">
+            <div class="alert-ok">✅ No alerts. The Watchtower sees all is well.</div>
+        </div>
+    </div>
+
+    <div class="actions">
+        <div class="action-btn" onclick="rescanAll()">
+            <div class="icon">🔄</div>
+            Rescan All
+        </div>
+        <div class="action-btn" onclick="viewBaselines()">
+            <div class="icon">📊</div>
+            Baselines
+        </div>
+        <div class="action-btn" onclick="viewLogs()">
+            <div class="icon">📋</div>
+            Logs
+        </div>
+        <div class="action-btn danger" onclick="simulateAttack()">
+            <div class="icon">💀</div>
+            Sim Attack
+        </div>
+    </div>
+
+    <script>
+        // Mock data — will be replaced by WebSocket to exarp serve
+        const sources = [
+            { name: 'cthonian', path: '/home', entropy: 4.85, files: 67197, status: 'ok', last: '2m ago', history: [] },
+            { name: 'yogsothoth', path: 'wdp10', entropy: 7.96, files: 295, status: 'ok', last: '5m ago', history: [] },
+            { name: 'yogsothoth', path: 'clawd-backup', entropy: 4.85, files: 66991, status: 'ok', last: '5m ago', history: [] },
+            { name: 'gertrude', path: '/home', entropy: 5.04, files: 146, status: 'ok', last: '8m ago', history: [] },
+        ];
+
+        const colors = ['#6ee7e7', '#facc15', '#4ade80', '#c084fc'];
+
+        // Generate mock history
+        sources.forEach((s, i) => {
+            for (let t = 0; t < 60; t++) {
+                const jitter = Math.sin(t * 0.08 + i * 1.7) * 0.08 + Math.cos(t * 0.18 + i * 1.7) * 0.04;
+                s.history.push(s.entropy + jitter);
+            }
+        });
+
+        function renderSources() {
+            const container = document.getElementById('sources');
+            container.innerHTML = sources.map((s, i) => {
+                const eClass = s.entropy > 7.5 ? 'warn' : s.status === 'critical' ? 'crit' : 'ok';
+                const cardClass = s.status === 'critical' ? 'source-card critical' : 'source-card';
+                return `<div class="${cardClass}" onclick="selectSource(${i})">
+                    <div>
+                        <div class="source-name">${s.name}</div>
+                        <div class="source-path">${s.path} · ${s.files.toLocaleString()} files</div>
+                    </div>
+                    <div class="source-right">
+                        <div class="source-entropy ${eClass}">${s.entropy.toFixed(2)} b/B</div>
+                        <div class="source-time">${s.last}</div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function drawChart() {
+            const canvas = document.getElementById('chart');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth * 2;
+            canvas.height = 320;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const allVals = sources.flatMap(s => s.history);
+            const yMin = Math.min(...allVals) - 0.5;
+            const yMax = Math.max(...allVals) + 0.5;
+            const xStep = canvas.width / 60;
+
+            // Grid lines
+            ctx.strokeStyle = '#1a1a3e';
+            ctx.lineWidth = 1;
+            for (let y = 0; y <= 4; y++) {
+                const py = (y / 4) * canvas.height;
+                ctx.beginPath();
+                ctx.moveTo(0, py);
+                ctx.lineTo(canvas.width, py);
+                ctx.stroke();
+            }
+
+            // Draw each source
+            sources.forEach((s, i) => {
+                ctx.strokeStyle = colors[i];
+                ctx.lineWidth = i === 0 ? 3 : 2;
+                ctx.globalAlpha = i === 0 ? 1 : 0.6;
+                ctx.beginPath();
+                s.history.forEach((v, t) => {
+                    const x = t * xStep;
+                    const y = canvas.height - ((v - yMin) / (yMax - yMin)) * canvas.height;
+                    t === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        let simActive = false;
+        function simulateAttack() {
+            if (simActive) return;
+            simActive = true;
+            const gertrude = sources[3];
+            const origEntropy = gertrude.entropy;
+            
+            // Simulate entropy spike
+            let tick = 0;
+            const interval = setInterval(() => {
+                tick++;
+                gertrude.entropy = origEntropy + (tick * 0.1);
+                gertrude.history.push(gertrude.entropy);
+                gertrude.history.shift();
+                
+                if (gertrude.entropy > 6.5) {
+                    gertrude.status = 'critical';
+                    document.getElementById('alert-list').innerHTML = 
+                        `<div class="alert-crit">🚨 CRITICAL: gertrude entropy spike +${(gertrude.entropy - origEntropy).toFixed(2)} b/B (${origEntropy.toFixed(2)} → ${gertrude.entropy.toFixed(2)})</div>
+                         <div class="alert-crit">🟡 .docx files entropy jumped +2.88</div>`;
+                }
+                
+                renderSources();
+                drawChart();
+                
+                if (tick > 25) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        gertrude.entropy = origEntropy;
+                        gertrude.status = 'ok';
+                        gertrude.history = [];
+                        for (let t = 0; t < 60; t++) {
+                            gertrude.history.push(origEntropy + Math.sin(t * 0.08 + 5.1) * 0.08);
+                        }
+                        document.getElementById('alert-list').innerHTML = 
+                            '<div class="alert-ok">✅ No alerts. The Watchtower sees all is well.</div>';
+                        renderSources();
+                        drawChart();
+                        simActive = false;
+                    }, 3000);
+                }
+            }, 200);
+        }
+
+        function selectSource(i) { /* TODO: highlight in chart */ }
+        function rescanAll() { alert('🔄 Rescan triggered (connect to exarp API)'); }
+        function viewBaselines() { alert('📊 Baselines (connect to exarp API)'); }
+        function viewLogs() { alert('📋 Logs (connect to exarp API)'); }
+
+        // Simulate live updates
+        setInterval(() => {
+            if (simActive) return;
+            sources.forEach((s, i) => {
+                const t = s.history.length;
+                const jitter = Math.sin(t * 0.08 + i * 1.7) * 0.08 + Math.cos(t * 0.18 + i * 1.7) * 0.04;
+                s.history.push(s.entropy + jitter);
+                if (s.history.length > 60) s.history.shift();
+            });
+            drawChart();
+        }, 1000);
+
+        renderSources();
+        setTimeout(drawChart, 100);
+        window.addEventListener('resize', drawChart);
+    </script>
+</body>
+</html>

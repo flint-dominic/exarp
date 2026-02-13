@@ -1,0 +1,16 @@
+{
+    "name": "Exarp Watchtower",
+    "short_name": "Exarp",
+    "description": "Backup intelligence monitoring",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0a0a1a",
+    "theme_color": "#0a0a1a",
+    "icons": [
+        {
+            "src": "icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+}

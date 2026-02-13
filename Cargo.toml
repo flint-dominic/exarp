@@ -1,0 +1,31 @@
+[package]
+name = "exarp"
+version = "0.1.0"
+edition = "2021"
+description = "Behavioral backup intelligence. Watches your data. Acts when it matters."
+license = "Apache-2.0"
+repository = "https://github.com/gblfxt/exarp"
+keywords = ["backup", "ransomware", "security", "monitoring"]
+categories = ["command-line-utilities", "filesystem"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rayon = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
+walkdir = "2"
+anyhow = "1"
+colored = "2"
+indicatif = "0.17"
+ratatui = { version = "0.29", optional = true }
+crossterm = { version = "0.28", optional = true }
+
+[features]
+default = ["tui"]
+tui = ["ratatui", "crossterm"]
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
