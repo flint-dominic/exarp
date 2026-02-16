@@ -1,5 +1,7 @@
 #[cfg(feature = "tui")]
 mod dashboard;
+mod config;
+mod restic;
 
 use anyhow::Result;
 use chrono::Utc;
@@ -64,6 +66,37 @@ enum Commands {
         #[arg(long)]
         webhook: Option<String>,
     },
+    /// Monitor restic backup repositories
+    Restic {
+        #[command(subcommand)]
+        action: ResticCommands,
+        /// Repository URL (overrides config/env)
+        #[arg(long, global = true)]
+        repo: Option<String>,
+        /// Password file path (overrides config/env)
+        #[arg(long, global = true)]
+        password_file: Option<String>,
+        /// Path to restic binary
+        #[arg(long, global = true)]
+        restic_path: Option<String>,
+        /// Output as JSON
+        #[arg(long, global = true)]
+        json: bool,
+    },
+    /// Initialize default config file at ~/.exarp/config.toml
+    Init,
+}
+
+#[derive(Subcommand)]
+enum ResticCommands {
+    /// Show repository status (snapshots, size, health)
+    Status,
+    /// List all snapshots with age and paths
+    Snapshots,
+    /// Run integrity check on the repository
+    Check,
+    /// Analyze drift between snapshots (detect anomalies)
+    Drift,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -524,6 +557,31 @@ fn main() -> Result<()> {
             } else if result.severity == "HIGH" {
                 std::process::exit(1);
             }
+        }
+
+        Commands::Restic {
+            action,
+            repo,
+            password_file,
+            restic_path,
+            json,
+        } => {
+            let cfg = config::ExarpConfig::load()?;
+            let runner = restic::ResticRunner::new(
+                restic_path.or(cfg.restic.binary.clone()),
+                repo.or(cfg.restic.repository.clone()),
+                password_file.or(cfg.restic.password_file.clone()),
+            );
+            match action {
+                ResticCommands::Status => restic::cmd_status(&runner, json)?,
+                ResticCommands::Snapshots => restic::cmd_snapshots(&runner, json)?,
+                ResticCommands::Check => restic::cmd_check(&runner, json)?,
+                ResticCommands::Drift => restic::cmd_drift(&runner, json, &cfg)?,
+            }
+        }
+
+        Commands::Init => {
+            config::ExarpConfig::init()?;
         }
 
         Commands::Watch {

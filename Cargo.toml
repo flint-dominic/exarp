@@ -1,6 +1,6 @@
 [package]
 name = "exarp"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Behavioral backup intelligence. Watches your data. Acts when it matters."
 license = "Apache-2.0"
@@ -17,6 +17,7 @@ chrono = { version = "0.4", features = ["serde"] }
 walkdir = "2"
 anyhow = "1"
 colored = "2"
+toml = "0.8"
 indicatif = "0.17"
 ratatui = { version = "0.29", optional = true }
 crossterm = { version = "0.28", optional = true }
